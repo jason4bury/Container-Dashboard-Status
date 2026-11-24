@@ -1,0 +1,30 @@
+# Container Dashboard Status
+# 1. Copy .env.example to .env next to this file and fill in the sign-in settings.
+# 2. Run: docker compose up -d   then open http://<your-server>:3040
+# 3. Add your other machines and the SSH key in Settings on the page.
+services:
+
+  container-dashboard-status:
+    image: jason4bury/container-dashboard-status:latest
+    container_name: container-dashboard-status
+    # App settings (sign-in, refresh time) come from .env.
+    env_file:
+      - .env
+    # Fixed container-side values. These override anything with the same name in .env.
+    environment:
+      PORT: 3040
+      DATA_DIR: /data
+    volumes:
+      # The machines and SSH key you add in Settings (the key is stored encrypted), in a Docker
+      # volume. To keep them in a folder instead, replace cds-data with a path such as D:/Docker/cds.
+      - cds-data:/data
+      # This machine's Docker, read-only: the app only ever reads from it.
+      # On Windows with Docker Desktop this same line works as it is.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      # Change the first number to use a different port on the host.
+      - "3040:3040"
+    restart: unless-stopped
+
+volumes:
+  cds-data:

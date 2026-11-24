@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/styles.css">
+<title>Container Dashboard Status</title>
+<script>try { const t = localStorage.getItem('cds-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch { /* no storage */ }</script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><img src="/apple-touch-icon.png" alt="">Container Dashboard Status</div>
+    <input class="search" id="search" type="search" placeholder="Search containers" aria-label="Search containers or images">
+    <select class="btn" id="show" aria-label="Which containers to show">
+      <option value="all">All containers</option>
+      <option value="running">Running</option>
+      <option value="stopped">Stopped</option>
+      <option value="problems">Problems</option>
+    </select>
+    <span class="spacer"></span>
+    <span class="checked muted" id="checked"></span>
+    <button class="btn" id="refresh" title="Check every machine again now">Refresh</button>
+    <select class="btn" id="theme" aria-label="Look" title="Look">
+      <option value="auto">Auto look</option>
+      <option value="light">Light look</option>
+      <option value="dark">Dark look</option>
+    </select>
+    <button class="btn" id="settingsBtn">Settings</button>
+    <button class="btn" id="helpBtn">Help</button>
+    <button class="btn" id="aboutBtn">About</button>
+    <button class="btn" id="signOut" hidden>Sign out</button>
+  </div>
+
+  <main>
+    <div class="summary" id="summary"></div>
+    <div id="machines"><p class="muted">Reading each machine's containers...</p></div>
+  </main>
+
+  <dialog id="settings" aria-labelledby="settingsTitle" class="wide">
+    <button class="btn close" data-close>Close</button>
+    <h2 id="settingsTitle">Settings</h2>
+
+    <h3>Machines</h3>
+    <p class="muted" id="fromHosts" hidden>These come from HOSTS in your .env file. Adding or removing one here saves the list in the app, and from then on HOSTS isn't used.</p>
+    <div id="machineList"></div>
+
+    <details id="addMachine">
+      <summary class="btn">Add a machine</summary>
+      <div class="form">
+        <label>Kind
+          <select id="mKind">
+            <option value="ssh">Another machine, over SSH with a key</option>
+            <option value="socket">The machine this dashboard runs on</option>
+            <option value="proxy">A Docker socket proxy</option>
+          </select>
+        </label>
+        <label>Name <input id="mName" placeholder="such as NAS" maxlength="40"></label>
+        <label data-kind="ssh proxy">Address <input id="mAddress" placeholder="such as 192.168.1.20"></label>
+        <label data-kind="ssh proxy">Port <input id="mPort" inputmode="numeric" placeholder="22"></label>
+        <label data-kind="ssh">User <input id="mUser" placeholder="such as admin" autocomplete="off"></label>
+        <label data-kind="ssh">Docker path <input id="mDocker" placeholder="blank for docker; Synology: /usr/local/bin/docker"></label>
+        <label data-kind="socket">Socket <input id="mSocket" value="unix:///var/run/docker.sock"></label>
+        <p class="muted small">Address: <code id="mUrl"></code></p>
+        <div class="row">
+          <button class="btn" id="mTest" type="button">Test</button>
+          <button class="btn primary" id="mAdd" type="button">Add</button>
+          <span id="mResult" class="small" role="status"></span>
+        </div>
+      </div>
+    </details>
+
+    <h3>SSH key</h3>
+    <div id="keyBox"></div>
+    <details id="pasteKey">
+      <summary class="btn">Use my own key</summary>
+      <div class="form">
+        <label>Private key <textarea id="kPrivate" rows="6" spellcheck="false" autocomplete="off" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"></textarea></label>
+        <label>Passphrase, if it has one <input id="kPass" type="password" autocomplete="off"></label>
+        <p class="muted small">It's stored encrypted in the app's data folder and is never shown again or sent back to the browser.</p>
+        <div class="row"><button class="btn primary" id="kSave" type="button">Save key</button><span id="kResult" class="small" role="status"></span></div>
+      </div>
+    </details>
+  </dialog>
+
+  <dialog id="help" aria-labelledby="helpTitle">
+    <button class="btn close" data-close>Close</button>
+    <h2 id="helpTitle">Help</h2>
+    <p>Container Dashboard Status shows the Docker containers on each of your machines: whether they're running, how much memory they use, and when they were last updated. It only looks; it never starts, stops or changes anything.</p>
+    <h3>Reading the page</h3>
+    <ul>
+      <li>Each machine has a card with its running and stopped containers and the memory they use. Click a card's title bar to fold it away.</li>
+      <li>The dot shows the state: green running, amber paused, red unhealthy, restarting or dead, grey stopped.</li>
+      <li><b>Memory</b> is what the container uses now, as <code>docker stats</code> shows it; the bar is its share of the machine's memory.</li>
+      <li><b>Image built</b> is when the image was made by its publisher, and when it was pulled where the machine knows that.</li>
+      <li><b>Last updated</b> is when the container was last made, which is when it was last updated or re-created. Dates over 90 days old are shown in amber.</li>
+    </ul>
+    <h3>Finding containers</h3>
+    <ul>
+      <li>Type in the search box to find containers by name, image or compose project.</li>
+      <li>The <b>All containers</b> list shows only running, stopped or problem containers (unhealthy, restarting, dead, or stopped with an error).</li>
+      <li>Click a column heading to sort by it; click again to reverse.</li>
+    </ul>
+    <h3>Refreshing</h3>
+    <p>The page checks again every <span id="helpRefresh">30</span> seconds. <b>Refresh</b> checks at once.</p>
+    <h3>Adding machines</h3>
+    <p>Open <b>Settings</b> and press <b>Add a machine</b>. Pick the kind, fill in its name and address, press <b>Test</b> to check it, then <b>Add</b>. <b>Remove</b> takes one off the page.</p>
+    <h3>The SSH key</h3>
+    <ol>
+      <li>In <b>Settings</b>, press <b>Make a key</b> (or <b>Use my own key</b> and paste a private key you already use).</li>
+      <li>Press <b>Copy</b> beside the line shown, and add it to <code>~/.ssh/authorized_keys</code> for the SSH user on each other machine. That line lets the key do one thing only: read Docker.</li>
+      <li>The SSH user must be able to use Docker. On a Synology NAS use an administrator account, and if Docker says permission denied run once on the NAS: <code>sudo synogroup --add docker &lt;user&gt;</code> then <code>sudo chown root:docker /var/run/docker.sock</code>.</li>
+    </ol>
+    <h3>When a machine shows an error</h3>
+    <p>The card says what went wrong, such as a machine that can't be reached, an SSH key that isn't accepted yet, or a Docker socket that isn't mounted. Press <b>Test</b> beside it in Settings to try it on its own.</p>
+  </dialog>
+
+  <dialog id="about" aria-labelledby="aboutTitle" class="about">
+    <img src="/apple-touch-icon.png" alt="">
+    <h2 id="aboutTitle">Container Dashboard Status</h2>
+    <p id="aboutVersion" class="muted"></p>
+    <p>A read-only web page showing which Docker containers run on each of your machines, the memory they use and when they were last updated.</p>
+    <p class="muted">Copyright (c) 2026 Jason Rhodes. MIT licence.<br>Created by Jason Rhodes, built with Claude (Anthropic).</p>
+    <p><a href="https://github.com/jason4bury/Container-Dashboard-Status" target="_blank" rel="noopener">GitHub page</a></p>
+    <button class="btn" data-close>Close</button>
+  </dialog>
+
+<script src="/js/app.js"></script>
+<script src="/js/settings.js"></script>
+</body>
+</html>
